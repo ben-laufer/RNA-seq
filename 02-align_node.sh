@@ -1,11 +1,17 @@
 #!/bin/bash
 
+##########################################################################################
+# Author: Ben Laufer
+# Email: blaufer@ucdavis.edu 
+##########################################################################################
+
 align(){
 
 	######################
 	# Set Up Environment #
 	######################
 
+	genomes="/share/lasallelab/genomes/mm10/star_150/"
 	directory=${PWD}/
 	sample=$1
 	rawpath=${directory}raw_sequences/
@@ -48,7 +54,7 @@ align(){
 
 	call="STAR \
 	--runThreadN 8 \
-	--genomeDir /share/lasallelab/genomes/mm10/star_150/ \
+	--genomeDir ${genomes} \
 	--readFilesIn ${trim1} ${trim2} \
 	--readFilesCommand zcat \
 	--outFilterType BySJout \
@@ -90,15 +96,11 @@ module load trim_galore/0.6.6
 source activate cutadapt-2.10
 module load star/2.7.3a
 module load samtools/1.10
-
-export mainPath="/share/lasallelab"
-export PYTHON_EGG_CACHE="${mainPath}/programs/CpG_Me"
+export PYTHON_EGG_CACHE="/share/lasallelab/programs/CpG_Me"
 
 #######
 # Run #
 #######
-
-cd /share/lasallelab/Ben/RNA-seq/
 
 mkdir alignLogs
 

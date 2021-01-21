@@ -35,7 +35,7 @@ mv Undetermined* Other
 
 echo "Checking for the right number of unique sample IDs for both R1 and R2"
 countFASTQ(){
-	awk -F '_' '{print $1"_"$2}' | \
+	awk -F '_' '{print $1}' | \
 	sort -u | \
 	wc -l
 }
@@ -44,9 +44,9 @@ export -f countFASTQ
 R1=`ls -1 *R1*.gz | countFASTQ`
 R2=`ls -1 *R2*.gz | countFASTQ`
 
-echo "Creating a file of unique IDs based on first two strings from underscore delimiter"
+echo "Creating a file of unique IDs based on first string from underscore delimiter"
 ls -1 *fastq.gz | \
-awk -F '_' '{print $1"_"$2}' | \
+awk -F '_' '{print $1"}' | \
 sort -u > \
 task_samples.txt
 

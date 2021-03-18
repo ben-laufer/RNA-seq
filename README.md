@@ -6,10 +6,11 @@
 1. [Installation](https://github.com/ben-laufer/RNA-seq#installation)
 2. [Indexing](https://github.com/ben-laufer/RNA-seq#indexing)
 3. [Download FASTQ Files](https://github.com/ben-laufer/RNA-seq#download-fastq-files)
-4. [Main Pipeline](https://github.com/ben-laufer/RNA-seq#main-pipeline)
+4. [Alignment Pipeline](https://github.com/ben-laufer/RNA-seq#main-pipeline)
    1. [Cluster](https://github.com/ben-laufer/RNA-seq#cluster)
    2. [Node](https://github.com/ben-laufer/RNA-seq#node)
 5. [Quality Control](https://github.com/ben-laufer/RNA-seq#quality-control)
+5. [Differential Gene Expression Analysis](https://github.com/ben-laufer/RNA-seq#differential-gene-expression-analysis)
 
 ## Installation
 
@@ -51,7 +52,7 @@ This script assumes the unique sample name is in the first string before the und
 
 This script will place everything in the current working directory and then submit the results to `02-align_cluster.sh`, so make sure that script is placed in the project directory or remove lines 70-77 if you want to use the node version.
 
-## Main Pipeline
+## Alignment Pipeline
 
 The primary pipeline is `02-align.sh`, where there are both cluster (`02-align_cluster.sh`) and node (`02-align.sh`) versions. This script will [trim](https://github.com/alexdobin/STAR/issues/455#issuecomment-407539412), align, and generate a generate a [gene count matrix](https://www.biostars.org/p/218995/) for each sample. You will have to edit `genomes` to be the genome directory on your cluster as well as either edit or remove `export PYTHON_EGG_CACHE`. Both scripts assume 2color chemistry (NovaSeq and NextSeq). If your data is from the HiSeq and MiSeq, the you should replace `--2colour` with `--quality`.
 
@@ -87,3 +88,7 @@ The node version of the script can be run from the working directory, where you 
 ## Quality Control
 
 The `03-QC.sh` script is the final step in the process, which a generates a html report and places the gene count matrices into a single folder. It requires `03-multiqc_config.yaml` to be placed in the same folder and you can edit this file to contain your project information.
+
+## Differential Gene Expression Analysis
+
+The `04-limma-voom.R` script provides an example of a differential gene expression analysis pipeline in R.

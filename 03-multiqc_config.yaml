@@ -1,12 +1,12 @@
 # Titles and introductory text
 title: "RNA-seq"
-subtitle: "QC analysis for RNA-seq data"
+subtitle: "QC for a custom WGBS workflow"
 intro_text: "Multiple QC reports to summarise trimming and alignment."
 report_comment: "This is the LaSalle lab version."
 
 # Report Logo
 custom_logo: '/share/lasallelab/programs/CpG_Me/UCDavis.png'
-custom_logo_url: 'http://mmi-lab.ucdavis.edu/
+custom_logo_url: 'http://mmi-lab.ucdavis.edu/wordpress/'
 custom_logo_title: 'LaSalle Lab @ UC Davis'
 
 #Project level information
@@ -14,8 +14,8 @@ report_header_info:
     - Workflow Developer: 'Ben Laufer'
     - E-mail: 'blaufer@ucdavis.edu'
     - Application Type: 'RNA-seq'
-    - Project Type: 'Pilot'
+    - Project Type: 'PEBBLES 1 mg/kg'
     - Sequencing Platform: 'NovaSeq 6000'
     - Sequencing Setup: 'PE 150 DI'
     - Library Kit: 'KAPA mRNA HyperPrep'
-    - Genome: 'mm10'
+    - Genome: 'GRCm38'

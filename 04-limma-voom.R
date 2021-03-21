@@ -9,21 +9,20 @@
 
 setwd("~/Box/PEBBLES/RNA")
 
-packages <- c("edgeR", "tidyverse", "annotables", "RColorBrewer", "org.Mm.eg.db", "EnhancedVolcano",
+packages <- c("edgeR", "tidyverse", "RColorBrewer", "org.Mm.eg.db", "AnnotationDbi", "EnhancedVolcano",
               "enrichR", "openxlsx", "gt", "glue", "Glimma", "sva", "DMRichR")
 enrichR:::.onAttach() # Needed or else "EnrichR website not responding"
 stopifnot(suppressMessages(sapply(packages, require, character.only = TRUE)))
 
 #BiocManager::install("ben-laufer/DMRichR")
-#BiocManager::install("stephenturner/annotables")
 
 # To test and develop, assign the variable tissue and then just run the main sections
 
 sink("RNA-seq_log.txt", type = "output", append = FALSE, split = TRUE)
 
-purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
-                             sex = c("male", "female")),
-             function(tissue, sex){
+tidyr::crossing(tissue = c("placenta", "brain"),
+                sex = c("male", "female")) %>% 
+  purrr::pwalk(function(tissue, sex){
                
                dir.create(glue::glue("{tissue}_{sex}"))
   
@@ -49,8 +48,8 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
     purrr::flatten_chr()
   
   # Could alternatively use edgeR::readDGE() but that calls to the slower read.delim()
-  geneSymbols <- list.files(path = glue::glue(getwd(), "/GeneCounts"),
-                            pattern = "*.ReadsPerGene.out.tab", full.names = TRUE)[1] %>% 
+  ensemblIDs <- list.files(path = glue::glue(getwd(), "/GeneCounts"),
+                           pattern = "*.ReadsPerGene.out.tab", full.names = TRUE)[1] %>% 
     data.table::fread(select = 1) %>%
     purrr::flatten_chr()
   
@@ -58,7 +57,7 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
                             pattern = "*.ReadsPerGene.out.tab", full.names = TRUE) %>%
     purrr::map_dfc(data.table::fread, select = 4, data.table = FALSE) %>%
     magrittr::set_colnames(sampleNames) %>% 
-    magrittr::set_rownames(geneSymbols)
+    magrittr::set_rownames(ensemblIDs)
   
   # Remove meta info
   countMatrix <- countMatrix[-c(1:4),]
@@ -66,6 +65,7 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   # Design Matrix -----------------------------------------------------------
   
   designMatrix <- readxl::read_xlsx("sample_info.xlsx") %>%
+    dplyr::rename(group = Treatment) %>% 
     dplyr::mutate_if(is.character, as.factor) %>%
     dplyr::mutate(Name = as.character(Name))
   
@@ -82,12 +82,13 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   
   print(glue::glue("Preprocessing {sex} {tissue} samples"))
  
-   # Select sample subset
+  # Select sample subset
   designMatrix <- designMatrix %>%
     dplyr::filter(Tissue == tissue & Sex == sex)
   
   countMatrix <- countMatrix %>%
-    dplyr::select(contains(designMatrix$Name))
+    dplyr::select(contains(designMatrix$Name)) %>% 
+    as.matrix
   
   # Create DGE list and calculate normalization factors
   countMatrix <- countMatrix %>%
@@ -100,10 +101,20 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   stopifnot(rownames(countMatrix$samples) == designMatrix$Name)
   
   # Add sample info from design matrix to DGE list
-  countMatrix$samples$group <- designMatrix$Treatment
-  countMatrix$samples$Sex <- designMatrix$Sex
-  countMatrix$samples$Litter <- designMatrix$Litter
-  countMatrix$samples$Tissue <- designMatrix$Tissue
+  countMatrix$samples <- countMatrix$samples %>%
+    tibble::add_column(designMatrix %>% dplyr::select(-Name))
+  
+  # Add gene info
+  countMatrix$genes <- purrr::map_dfc(c("SYMBOL", "GENENAME", "ENTREZID", "CHR"), function(column){
+    rownames(countMatrix$counts) %>% 
+      AnnotationDbi::mapIds(org.Mm.eg.db,
+                            keys = .,
+                            column = column,
+                            keytype = 'ENSEMBL') %>%
+      as.data.frame() %>% 
+      tibble::remove_rownames() %>% 
+      purrr::set_names(column)
+  })
   
   # Raw density of log-CPM values
   
@@ -159,14 +170,14 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   Glimma::glMDSPlot(countMatrix,
                     groups = designMatrix,
                     path = getwd(),
-                    folder = "interactiveMDS",
+                    folder = "interactivePlots",
                     html = glue::glue("{tissue}_{sex}_MDS-Plot"),
                     launch = FALSE)
 
   # Surrogate variables analysis --------------------------------------------
   
   # # Create model matrices, with null model for svaseq, and don't force a zero intercept
-  # mm <- model.matrix(~Treatment + Litter,
+  # mm <- model.matrix(~group + Litter,
   #                    data = designMatrix)
   # 
   # mm0 <- model.matrix(~1 + Litter,
@@ -195,7 +206,7 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   print(glue::glue("Normalizing {sex} {tissue} samples"))
   
   # Design
-  mm <- model.matrix(~Treatment,
+  mm <- model.matrix(~group,
                      data = designMatrix)
   
   # Voom
@@ -235,7 +246,7 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   
   print(glue::glue("Testing {sex} {tissue} samples for differential expression"))
   
-  # Wieght standard errors of log fold changes by within litter correlation 
+  # Weight standard errors of log fold changes by within litter correlation 
   fit <- lmFit(voomLogCPM,
                mm,
                correlation = correlations,
@@ -253,25 +264,43 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   
   print(glue::glue("Creating DEG list of {sex} {tissue} samples"))
   
-  DEGs <- fit %>%
+  efit <- fit %>%
     contrasts.fit(coef = 2) %>% # Change for different models
-    eBayes() %>%
-    topTable(sort.by = "P", n = Inf)
+    eBayes() 
   
-  DEGs <- DEGs %>%
+  # Final model plot
+  pdf(glue::glue("{tissue}_{sex}/{tissue}_{sex}_final_model_mean-variance_trend.pdf"),
+      height = 8.5, width = 11)
+  
+  plotSA(efit, main = "Final model: Mean-variance trend")
+  
+  dev.off()
+  
+  # Interactive MA plot
+  Glimma::glimmaMA(efit,
+                   dge = countMatrix,
+                   path = getwd(),
+                   html = glue::glue("interactivePlots/{tissue}_{sex}_MDA-Plot.html"),
+                   launch = FALSE)
+  
+  # Top differentially expressed genes
+  DEGs <- efit %>%
+    topTable(sort.by = "P", n = Inf) %>% 
     rownames_to_column() %>% 
     tibble::as_tibble() %>%
-    dplyr::rename(symbol = rowname) %>% 
-    dplyr::left_join(annotables::grcm38, by = "symbol") %>% 
-    dplyr::select(symbol, logFC, P.Value, adj.P.Val, ensgene, description) %T>%
+    dplyr::rename(ensgene = rowname) %>% 
+    dplyr::mutate(FC = dplyr::case_when(logFC > 0 ~ 2^logFC,
+                                        logFC < 0 ~ -1/(2^logFC))) %>%
+    dplyr::select(SYMBOL, GENENAME, FC, logFC, P.Value, adj.P.Val, AveExpr, t, B, ensgene) %T>%
     openxlsx::write.xlsx(file = glue::glue("{tissue}_{sex}/{tissue}_{sex}_DEGs.xlsx"))
+  # For a continuous trait the FC is the change per each unit
   
   # Volcano Plot ------------------------------------------------------------
   
   volcano <- DEGs %>% 
     EnhancedVolcano::EnhancedVolcano(title = "",
                                      labSize = 5,
-                                     lab = .$symbol,
+                                     lab = .$SYMBOL,
                                      x = 'logFC',
                                      y = 'P.Value', # P.Value 'adj.P.Val'
                                      col = c("grey30", "royalblue", "royalblue", "red2"),
@@ -295,19 +324,18 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
     openxlsx::write.xlsx(file = glue::glue("{tissue}_{sex}/{tissue}_{sex}_filtered_DEGs.xlsx"))
   
   DEGs %>%
-    dplyr::rename(Gene = symbol,
+    dplyr::rename(Gene = SYMBOL,
                   "p-value" = P.Value,
                   "adjusted  p-value" = adj.P.Val,
-                  Description = description) %>% 
-    dplyr::select(-ensgene) %>%
-    dplyr::mutate(Description = purrr::map_chr(strsplit(DEGs$description, split='[', fixed=TRUE),function(x) (x[1]))) %>% 
+                  Description = GENENAME,
+                  ensembl = ensgene) %>% 
     gt() %>%
     tab_header(
       title = glue::glue("{nrow(DEGs)} Differentially Expressed Genes"),
       subtitle = glue::glue("{round(sum(DEGs$logFC > 0) / nrow(DEGs), digits = 2)*100}% up-regulated, \\
                               {round(sum(DEGs$logFC < 0) / nrow(DEGs), digits = 2)*100}% down-regulated")) %>% 
     fmt_number(
-      columns = vars("logFC"),
+      columns = vars("FC", "logFC", "AveExpr", "t", "B"),
       decimals = 2) %>% 
     fmt_scientific(
       columns = vars("p-value", "adjusted  p-value"),
@@ -319,13 +347,13 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
   
   print(glue::glue("Plotting heatmap of {sex} {tissue} samples"))
   
-  voomLogCPM$E[which(rownames(voomLogCPM$E) %in% DEGs$symbol),] %>%
+  voomLogCPM$E[which(rownames(voomLogCPM$E) %in% DEGs$ensgene),] %>%
     as.matrix() %>% 
     pheatmap::pheatmap(.,
                        scale = "row",
                        annotation_col = designMatrix %>%
                          tibble::column_to_rownames(var = "Name") %>% 
-                         dplyr::select(Treatment, Litter),
+                         dplyr::select(Treatment = group, Litter),
                        color = RColorBrewer::brewer.pal(11, name = "RdBu") %>%
                          rev(),
                        show_colnames = FALSE,
@@ -346,7 +374,7 @@ purrr::pwalk(tidyr::crossing(tissue = c("placenta", "brain"),
 
   tryCatch({
   DEGs %>% 
-    dplyr::select(symbol) %>%
+    dplyr::select(SYMBOL) %>%
     purrr::flatten() %>%
     enrichR::enrichr(c("GO_Biological_Process_2018",
                        "GO_Cellular_Component_2018",

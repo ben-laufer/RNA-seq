@@ -29,17 +29,17 @@ echo "Allocated memory: " $MEM
 # Load Modules #
 ################
 
+module load star/2.7.3a
+module load samtools/1.11
+export PYTHON_EGG_CACHE="${mainPath}/programs/CpG_Me"
 module load trim_galore/0.6.6
 source activate cutadapt-2.10
-module load star/2.7.3a
-module load samtools/1.10
-export PYTHON_EGG_CACHE="/share/lasallelab/programs/CpG_Me"
+export mainPath="/share/lasallelab"
 
 ######################
 # Set Up Environment #
 ######################
 
-genomes="/share/lasallelab/genomes/mm10/star_150/"
 directory=${PWD}/
 sample=`sed "${SLURM_ARRAY_TASK_ID}q;d" task_samples.txt`
 rawpath=${directory}raw_sequences/
@@ -82,7 +82,7 @@ cd ${mappath}
 
 call="STAR \
 --runThreadN 8 \
---genomeDir ${mainPath}/genomes/mm10/star_150/ \
+--genomeDir /share/lasallelab/genomes/GRCm38/star_150/ \
 --readFilesIn ${trim1} ${trim2} \
 --readFilesCommand zcat \
 --outFilterType BySJout \

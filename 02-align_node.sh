@@ -1,17 +1,9 @@
-#!/bin/bash
-
-##########################################################################################
-# Author: Ben Laufer
-# Email: blaufer@ucdavis.edu 
-##########################################################################################
-
 align(){
 
 	######################
 	# Set Up Environment #
 	######################
 
-	genomes="/share/lasallelab/genomes/mm10/star_150/"
 	directory=${PWD}/
 	sample=$1
 	rawpath=${directory}raw_sequences/
@@ -54,7 +46,7 @@ align(){
 
 	call="STAR \
 	--runThreadN 8 \
-	--genomeDir ${genomes} \
+	--genomeDir /share/lasallelab/genomes/GRCm38/star_150/
 	--readFilesIn ${trim1} ${trim2} \
 	--readFilesCommand zcat \
 	--outFilterType BySJout \
@@ -92,20 +84,23 @@ export -f align
 # Load Modules #
 ################
 
+module load star/2.7.3a
+module load samtools/1.11
+export PYTHON_EGG_CACHE="${mainPath}/programs/CpG_Me"
 module load trim_galore/0.6.6
 source activate cutadapt-2.10
-module load star/2.7.3a
-module load samtools/1.10
-export PYTHON_EGG_CACHE="/share/lasallelab/programs/CpG_Me"
+export mainPath="/share/lasallelab"
 
 #######
 # Run #
 #######
 
+cd /share/lasallelab/Ben/PEBBLES/RNA/
+
 mkdir alignLogs
 
-parallel --dry-run --will-cite --results alignLogs -j 8 "align {}" :::: task_samples.txt
-parallel --verbose --will-cite --results alignLogs -j 8 "align {}" :::: task_samples.txt
+parallel --dry-run --will-cite --results alignLogs -j 4 "align {}" :::: task_samples.txt
+parallel --verbose --will-cite --results alignLogs -j 4 "align {}" :::: task_samples.txt
 
 
 

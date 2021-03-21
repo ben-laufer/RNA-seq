@@ -23,7 +23,7 @@ hostname
 # Load Modules #
 ################
 
-module load multiqc/1.8
+module load multiqc/1.9
 
 ###########
 # MultiQC #
@@ -31,7 +31,7 @@ module load multiqc/1.8
 
 call="multiqc
 . \
---ignore slurm_logs/ \
+--ignore alignLogs/ \
 --ignore raw_sequences/ \
  --config 03-multiqc_config.yaml"
 

@@ -84,12 +84,12 @@ export -f align
 # Load Modules #
 ################
 
+export mainPath="/share/lasallelab"
 module load star/2.7.3a
 module load samtools/1.11
 export PYTHON_EGG_CACHE="${mainPath}/programs/CpG_Me"
 module load trim_galore/0.6.6
 source activate cutadapt-2.10
-export mainPath="/share/lasallelab"
 
 #######
 # Run #
